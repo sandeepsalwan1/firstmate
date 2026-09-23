@@ -1,0 +1,118 @@
+=== S1 BASE fdd3687 on Mac: real quota-axi (exit 1, all providers failed)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/count-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> fm-dispatch-live.04Pznk/base/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+--- stderr
+dispatch-resolve: error (quota-axi --json failed)
+
+=== S2 FIX 24c9d80 on Mac: real quota-axi (exit 1, all providers failed)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/count-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: escalate
+  model: jev-1.13.0   latency_ms: 314   tokens: 491/62
+  rule: rule_4 (A simple bug fix with a stated root cause.)   confidence: 1.0
+  probabilities: rule_1=0.0 rule_2=0.0 default=0.0 rule_4=1.0 rule_3=0.0
+  reason: no rankable eligible candidate
+  note: rule matched
+  candidate: claude:sonnet  provider=claude  -> eligible, unranked: provider claude unmeasured (unknown): disclosed uncertainty
+  candidate: cursor:cursor-grok-4.6-medium  provider=cursor  -> eligible, unranked: provider cursor unmeasured (unknown): disclosed uncertainty
+  candidate: kimi:kimi-code/k3  provider=kimi  -> eligible, unranked: provider kimi unmeasured (unknown): disclosed uncertainty
+--- stderr
+
+=== S3 BASE fdd3687 with new desktop dev-dsk-salwansa-2b-96d28a87 quota-axi over ssh (exit 1, all providers failed)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/remote-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> fm-dispatch-live.04Pznk/base/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [dev-new:--json;]
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+--- stderr
+dispatch-resolve: error (quota-axi --json failed)
+
+=== S4 FIX 24c9d80 with new desktop dev-dsk-salwansa-2b-96d28a87 quota-axi over ssh (exit 1, all providers failed)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/remote-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [dev-new:--json;]
+--- stdout
+dispatch-resolve:
+  status: escalate
+  model: jev-1.13.0   latency_ms: 152   tokens: 491/62
+  rule: rule_4 (A simple bug fix with a stated root cause.)   confidence: 1.0
+  probabilities: rule_1=0.0 rule_2=0.0 rule_4=1.0 default=0.0 rule_3=0.0
+  reason: no rankable eligible candidate
+  note: rule matched
+  candidate: claude:sonnet  provider=claude  -> eligible, unranked: provider claude unmeasured (unknown): disclosed uncertainty
+  candidate: cursor:cursor-grok-4.6-medium  provider=cursor  -> eligible, unranked: provider cursor unmeasured (unknown): disclosed uncertainty
+  candidate: kimi:kimi-code/k3  provider=kimi  -> eligible, unranked: provider kimi unmeasured (unknown): disclosed uncertainty
+--- stderr
+
+=== S5 FIX adversarial: real quota-axi fails to start (node exit 9, no stdout)
+$ NODE_OPTIONS=--fm-bogus-flag PATH=/tmp/fm-dispatch-live.04Pznk/count-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+--- stderr
+dispatch-resolve: error (quota-axi --json failed)
+
+=== S6 FIX adversarial: real quota-axi output truncated to 300 bytes, exit 1 (invalid snapshot + nonzero)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/trunc-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json failed
+--- stderr
+dispatch-resolve: error (quota-axi --json failed)
+
+=== S7 FIX adversarial: stub quota-axi exit 0 with schemaVersion 7 (invalid snapshot + zero exit)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/badexit0-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi --json returned an invalid snapshot
+--- stderr
+dispatch-resolve: error (quota-axi --json returned an invalid snapshot)
+
+=== S8 FIX stub quota-axi: valid snapshot with fresh providers, exit 1 (future quota-axi shape)
+$ PATH=/tmp/fm-dispatch-live.04Pznk/mixed-bin:$PATH FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 1 [--json;]
+--- stdout
+dispatch-resolve:
+  status: clear
+  model: jev-1.13.0   latency_ms: 156   tokens: 491/62
+  rule: rule_4 (A simple bug fix with a stated root cause.)   confidence: 1.0
+  probabilities: rule_1=0.0 rule_3=0.0 rule_4=1.0 rule_2=0.0 default=0.0
+  note: rule matched
+  note: 1 eligible candidate(s) unranked (kimi)
+  candidate: claude:sonnet  provider=claude  scope=all_models  remaining=79%  spendPriority=-0.4627  runway=projected_exhaustion  -> eligible
+  candidate: cursor:cursor-grok-4.6-medium  provider=cursor  scope=all_models  remaining=91%  spendPriority=0.7597  runway=through_reset  -> eligible
+  candidate: kimi:kimi-code/k3  provider=kimi  -> eligible, unranked: provider kimi unmeasured (unknown): disclosed uncertainty
+  profile: --harness 'cursor' --model 'cursor-grok-4.6-medium'
+--- stderr
+
+=== S9 FIX quota-axi absent from PATH (not installed)
+$ PATH=/opt/homebrew/bin:/usr/bin:/bin (no quota-axi) FM_HOME=$LAB/home TYPESAFE_API_KEY=<from ~/firstmate/.env> a35aae4093c8/01M385KVBATFSWT5T7NNS6EQ1X/bin/fm-dispatch-resolve.sh brief.md --project demo
+exit: 0
+quota-axi calls: 0 []
+--- stdout
+dispatch-resolve:
+  status: error
+  reason: quota-axi not installed
+--- stderr
+dispatch-resolve: error (quota-axi not installed)
+
