@@ -1,0 +1,5 @@
+ok - fm-harness.sh: gemini's marker outranks an inherited CLAUDECODE
+ok - fm-harness.sh: an inherited AI_AGENT never claims the gemini identity
+ok - fm-harness.sh: ancestry detects a natively-named gemini command
+ok - fm-harness.sh: ancestry rejects unrelated gemini mentions
+not ok - node reports comm=/tmp/fm-node-versioned.JMH3XM/node22 here, so ancestry must not be claiming gemini; got 'gemini'
