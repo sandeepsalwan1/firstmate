@@ -619,60 +619,22 @@ The guard submits no prompt and spends no tokens, so it runs by default wherever
 
 ## Codex hook trust
 
-Verified 2026-09-16 on codex-cli 0.151.0, macOS arm64, in a fresh linked worktree of this repository.
-
-Codex gates hooks it has no persisted trust for behind an interactive modal.
-A crewmate launch built by `bin/fm-spawn.sh` was driven under a real PTY and stopped there before the brief was ever submitted:
-
-```text
-Hooks need review
-12 hooks are new or changed.
-Hooks can run outside the sandbox after you trust them.
-> 1. Review hooks
-  2. Trust all and continue
-  3. Continue without trusting (hooks won't run)
-Press enter to confirm or esc to go back
-```
-
-The selection starts on "Review hooks", which is neither trusting nor declining, and Firstmate's key plane carries only Enter, Escape, and C-c with no arrow navigation, so the selection cannot be moved.
-That count covers every hook Codex had no persisted trust for, drawn from both the machine's own `~/.codex/hooks.json` and this repository's tracked `.codex/hooks.json`.
-Writing Codex's own trust store to pre-accept the modal would record an operator consent that was never given, so it is not an option either.
-
-`codex --help` documents `--dangerously-bypass-hook-trust` as "Run enabled hooks without requiring persisted hook trust for this invocation", which RUNS the untrusted hooks.
-That is the opposite of what an unattended worker needs, so the control used is the hook feature flag:
+Verified 2026-09-28 on Codex 0.158.0.587, macOS arm64.
+The previous Firstmate crewmate launch reported `hooks false` because it passed `--disable hooks`.
+The captured launch now passes `--dangerously-bypass-hook-trust`, and the installed Codex accepts the flag with `hooks true`.
 
 ```sh
-codex features list | grep '^hooks'
-codex --disable hooks features list | grep '^hooks'
-codex --disable no_such_feature features list
+bash tests/fm-codex-hook-layer-live-e2e.test.sh
 ```
 
 ```text
-hooks                                    stable             true
-hooks                                    stable             false
-Error: Unknown feature flag: no_such_feature
+ok - codex 0.158.0.587 (stable) accepts Firstmate crewmate hook flags and leaves hooks enabled
+# all fm-codex-hook-layer-live-e2e tests passed
 ```
 
-The last arm is what makes the control safe to depend on: an unknown feature name is a hard error, so a release that renames or drops the flag fails the launch loudly instead of silently restoring the modal.
-
-The same launch with the hook layer disabled reached the composer with no modal, answered the prompt, and fired the turn-end program that rides the launch rather than any hook:
-
-```sh
-codex --dangerously-bypass-approvals-and-sandbox --disable hooks \
-  -c "notify=[\"bash\",\"-c\",\"touch $TURNEND\"]" "Say ACK and stop."
-```
-
-```text
-> Say ACK and stop.
-- ACK, captain.
-$ ls "$TURNEND"
-<turn-end file present>
-```
-
-`tests/fm-codex-hook-layer-live-e2e.test.sh` is the command that refreshes this record.
-It captures the launch `bin/fm-spawn.sh` actually builds, replays those exact flags against the installed Codex, and fails naming the harness and version if the hook layer comes back on.
-It spends no model tokens, so it runs by default wherever Codex is installed.
-The portable half, `tests/fm-spawn-dispatch-profile.test.sh`, pins the split the launch template makes: a crewmate launches hook-free while a secondmate, which runs a primary session on this repository's own project hooks, keeps them.
+The live guard checks Codex without a model call.
+A single ephemeral `codex exec --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust` request in a temporary Git repository exited 0, ran a new project `SessionStart` hook, and replied `OK`.
+The portable `tests/fm-spawn-dispatch-profile.test.sh` checks crewmate and secondmate launch flags and the crewmate turn-end notification.
 
 ## Composer classification matrix
 
