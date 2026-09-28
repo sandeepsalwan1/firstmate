@@ -886,6 +886,11 @@ assert_contains "$out" 'candidate: cursor:cursor-grok-4.6-medium  provider=curso
 assert_not_contains "$out" 'quota-axi --json' "a valid snapshot is never reported as a quota-axi failure"
 assert_not_contains "$out" '  profile:' "an all-failed snapshot emits no profile"
 reset_log
+TYPESAFE_API_KEY=$KEY FAKE_QUOTA_STATUS=1 run code out err "$BRIEF"
+expect_code 0 "$code" "valid quota snapshot with provider errors exits 0"
+assert_contains "$out" '  status: clear' "valid quota snapshot remains usable when quota-axi reports provider errors"
+assert_contains "$out" "  profile: --harness 'cursor' --model 'cursor-grok-4.6-medium'" "valid quota snapshot still drives the argmax"
+reset_log
 TYPESAFE_API_KEY=$KEY FAKE_QUOTA_FAIL=1 run code out err "$BRIEF"
 expect_code 0 "$code" "quota-axi failure exits 0"
 assert_equals '--json' "$(cat "$LOG/quota-axi.calls")" "a failed quota-axi read is never retried"
