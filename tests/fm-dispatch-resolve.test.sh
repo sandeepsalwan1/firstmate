@@ -720,6 +720,18 @@ assert_contains "$out" '  note: no rule matched' "default is explained"
 assert_contains "$out" "  profile: --harness 'cursor' --model 'cursor-grok-4.6-high'" "default resolves by argmax"
 pass "default: no rule matched resolves among the default profiles"
 
+for model in openai.gpt-5.6-sol openai.gpt-6-sol; do
+  printf '{"rules":[{"when":"An unrelated task","use":{"harness":"codex","model":"gpt-5","effort":"high"}}],"default":{"harness":"codex","model":"%s","effort":"max"}}\n' "$model" > "$RULES"
+  reset_log
+  printf '%s\n' '{"model":"jev-1.13.0","answers":{"rule":{"type":"choice","choice":"default","confidence":0.88,"probabilities":{"rule_1":0.12,"default":0.88}}}}' > "$RESPONSE"
+  TYPESAFE_API_KEY=$KEY run code out err "$BRIEF"
+  expect_code 0 "$code" "$model max effort resolves"
+  assert_contains "$out" '  status: clear' "$model max effort is accepted"
+  assert_contains "$out" "  profile: --harness 'codex' --model '$model' --effort 'max'" "$model max effort reaches the selected profile"
+done
+cp "$BASE_RULES" "$RULES"
+pass "catalog-supported Codex Sol models keep max effort in typed dispatch"
+
 # --- genuine tie escalates ---------------------------------------------------------
 reset_log
 TIE="$TMP_ROOT/tie.json"

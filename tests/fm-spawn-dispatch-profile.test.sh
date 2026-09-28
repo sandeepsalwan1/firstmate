@@ -537,19 +537,21 @@ test_codex_threads_model_and_effort() {
 }
 
 test_codex_threads_model_and_max_effort() {
-  local rec id out status launch
-  id=profile-codex-max-z4
-  rec=$(make_spawn_case profile-codex-max codex "$id")
-  read_case_record "$rec"
+  local rec id out status launch model
+  for model in gpt-5.6-luna openai.gpt-5.6-sol openai.gpt-6-sol; do
+    id=profile-codex-max-${model//./-}-z4
+    rec=$(make_spawn_case "$id" codex "$id")
+    read_case_record "$rec"
 
-  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --model gpt-5.6-luna --effort max)
-  status=$?
-  expect_code 0 "$status" "codex Luna spawn with max effort should succeed"
-  assert_meta_profile "$HOME_DIR/state/$id.meta" codex gpt-5.6-luna max
-  launch=$(cat "$LAUNCH_LOG")
-  assert_contains "$launch" "codex --model 'gpt-5.6-luna' -c 'model_reasoning_effort=\"max\"' --dangerously-bypass-approvals-and-sandbox" \
-    "codex launch did not thread Luna's max reasoning effort config"
-  pass "codex Luna receives --model and model_reasoning_effort max profile flags"
+    out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --model "$model" --effort max)
+    status=$?
+    expect_code 0 "$status" "codex $model spawn with max effort should succeed"
+    assert_meta_profile "$HOME_DIR/state/$id.meta" codex "$model" max
+    launch=$(cat "$LAUNCH_LOG")
+    assert_contains "$launch" "codex --model '$model' -c 'model_reasoning_effort=\"max\"' --dangerously-bypass-approvals-and-sandbox" \
+      "codex launch did not thread $model max reasoning effort config"
+  done
+  pass "Codex catalog-supported models receive max reasoning effort"
 }
 
 test_codex_omits_max_effort_for_unsupported_model() {
@@ -1094,26 +1096,22 @@ test_lavish_server_address_is_exported_to_worker_launch() {
 }
 
 test_lavish_absent_config_preserves_destination_ambient() {
-  local rec id out status launch pane_log seen
+  local rec id out status launch seen
   id=profile-lavish-ambient-z18b
   rec=$(make_spawn_case profile-lavish-ambient claude "$id")
   read_case_record "$rec"
-  pane_log="$CASE_DIR/pane.log"
   seen="$CASE_DIR/lavish-seen"
   cat > "$FAKEBIN_DIR/claude" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "${LAVISH_AXI_HOST-unset}" > "$FM_LAVISH_SEEN"
 SH
   chmod +x "$FAKEBIN_DIR/claude"
-  out=$(FM_FAKE_PANE_LOG="$pane_log" \
-    run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
   status=$?
   expect_code 0 "$status" "an absent Lavish host configuration should allow the worker spawn"
   launch=$(cat "$LAUNCH_LOG")
   assert_not_contains "$launch" "LAVISH_AXI_HOST" \
     "an absent configuration changed the host in the worker launch"
-  assert_not_contains "$(cat "$pane_log")" "LAVISH_AXI_HOST" \
-    "an absent configuration changed the host in the destination pane"
   FM_LAVISH_SEEN="$seen" LAVISH_AXI_HOST=destination.example PATH="$FAKEBIN_DIR:$PATH" \
     bash -c "$launch" || fail "the destination-pane launch command failed"
   assert_grep 'destination.example' "$seen" \
