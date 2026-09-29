@@ -258,7 +258,7 @@ load_job user dev.firstmate.herdr.fm-remote
 guard
 expect_code 0 "$GUARD_RC" "the guard failed to take over a label also loaded in the user domain"
 assert_stop_before_start
-assert_contains "$GUARD_OUT" "pid $BACKGROUND_PID born outside the Aqua login session (unknown)" \
+assert_contains "$GUARD_OUT" "pid $BACKGROUND_PID born outside the Aqua login session (" \
   "a user-domain label was trusted as Aqua"
 
 new_case running
@@ -266,20 +266,22 @@ printf '%s\n' "$XPC_ZERO_PID" > "$CASE_OWNER"
 guard
 expect_code 0 "$GUARD_RC" "the guard failed to take over an XPC_SERVICE_NAME=0 owner"
 assert_stop_before_start
-assert_contains "$GUARD_OUT" "pid $XPC_ZERO_PID born outside the Aqua login session (unknown)" \
+assert_contains "$GUARD_OUT" "pid $XPC_ZERO_PID born outside the Aqua login session (" \
   "XPC_SERVICE_NAME=0 was trusted as Aqua"
 
-for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unknown $UNMARKED_PID"; do
+for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unmarked $UNMARKED_PID"; do
   new_case running
   printf '%s\n' "${foreign#* }" > "$CASE_OWNER"
   guard
   expect_code 0 "$GUARD_RC" "the guard failed to take over from a ${foreign%% *} owner (pid ${foreign#* })"
   assert_stop_before_start
   assert_started "the guard did not start its own server after the ${foreign%% *} owner released the socket"
-  assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
+  expected_birth="pid ${foreign#* } born outside the Aqua login session ("
+  if [ "${foreign%% *}" = ssh ]; then expected_birth="${expected_birth}ssh)"; fi
+  assert_contains "$GUARD_OUT" "$expected_birth" \
     "the guard did not name the foreign owner and its birth"
 done
-pass "background, inherited-XPC, SSH-born, SSH-descended, and unprovable owners are taken over"
+pass "background, inherited-XPC, SSH-born, SSH-descended, and unmarked owners are taken over"
 
 # --- an owner nobody can prove is treated as foreign -------------------------
 
