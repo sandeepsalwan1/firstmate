@@ -596,7 +596,8 @@ case "${1:-}" in
       '  hold_kind: captain'
     if [ -f "@HOME@/last-body" ]; then
       printf '%s' '  body: '
-      perl -MJSON::PP -e 'local $/; print encode_json(<STDIN>)' < "@HOME@/last-body"
+      perl -MJSON::PP -e 'local $/; print JSON::PP->new->utf8->allow_nonref->encode(<STDIN>)' \
+        < "@HOME@/last-body"
       printf '\n'
     else
       printf '%s\n' '  body: ""'

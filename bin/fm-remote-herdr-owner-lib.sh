@@ -92,7 +92,7 @@ fm_remote_herdr_process_ancestry() { # <pid>
   while [ "$depth" -lt 64 ]; do
     case "$pid" in ''|*[!0-9]*) return 0 ;; esac
     [ "$pid" -gt 0 ] || return 0
-    line=$(ps -o ppid=,command= -p "$pid" 2>/dev/null) || return 0
+    line=$(ps -o ppid= -o command= -p "$pid" 2>/dev/null) || return 0
     [ -n "$line" ] || return 0
     ppid=$(printf '%s' "$line" | awk '{print $1}')
     printf '%s %s\n' "$pid" "$(printf '%s' "$line" | sed 's/^[[:space:]]*[0-9]*[[:space:]]*//')"

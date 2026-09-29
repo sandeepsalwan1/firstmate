@@ -551,7 +551,7 @@ inbox_steer_check() {  # <window> <task>
       return 0
       ;;
   esac
-  tail40=$(fm_backend_capture "$backend" "$w" 40 "$(window_label "$w")" 2>/dev/null) || tail40=
+  run_backend_capture "$backend" "$w" 40 "$(window_label "$w")" && tail40=$FM_CHECK_RESULT || tail40=
   if window_is_busy "$w" "$tail40"; then
     return 0
   fi
@@ -743,7 +743,8 @@ signal_turnend_panes_churned() {  # <file> ...
     [ "$hash_bytes" = 32 ] || return 1
     prev=$(cat "$hash_file" 2>/dev/null) || return 1
     [[ $prev =~ ^[0-9a-f]{32}$ ]] || return 1
-    now=$(fm_backend_capture "$backend" "$w" 40 "$label" 2>/dev/null) || return 1
+    run_backend_capture "$backend" "$w" 40 "$label" || return 1
+    now=$FM_CHECK_RESULT
     [ -n "$now" ] || return 1
     [ "$(printf '%s' "$now" | hash_pane)" != "$prev" ] || return 1
     churned_keys+=("$key")
@@ -849,27 +850,9 @@ secondmate_in_active_turn() {  # <window> <idle>
   local w=$1 idle=$2 tail40
   [ -n "$w" ] || return 1
   [ "$idle" -lt "$BUSY_TURN_MAX_SECS" ] || return 1
-  tail40=$(fm_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" 2>/dev/null) || return 1
+  run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 1
+  tail40=$FM_CHECK_RESULT
   window_is_busy "$w" "$tail40"
-}
-
-# First token of the semantic busy classification for <window>: busy, idle,
-# unknown, or dead. Capture failure and a missing window are unknown, never
-# idle. Empty inbox and a fresh watcher beacon are not consulted.
-secondmate_busy_class() {  # <window>
-  local w=$1 task meta tail40 verdict
-  task=$(window_to_task "$w" "$STATE")
-  meta="$STATE/$task.meta"
-  if [ -z "$w" ] || [ -z "$task" ] || [ ! -f "$meta" ]; then
-    printf 'unknown'
-    return 0
-  fi
-  tail40=$(fm_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" 2>/dev/null) || {
-    printf 'unknown'
-    return 0
-  }
-  verdict=$(fm_busy_classify_meta "$meta" "$task" "$STATE" "$tail40")
-  printf '%s' "${verdict%% *}"
 }
 
 # 0 iff a child ring is authorized: exact idle, a live agent, and a composer
@@ -877,9 +860,15 @@ secondmate_busy_class() {  # <window>
 # composer all refuse, so a Kimi or Claude pane without an exact idle
 # verdict is never typed into.
 secondmate_idle_ring_safe() {  # <window>
-  local w=$1 backend agent_state cstate
+  local w=$1 task meta verdict backend agent_state cstate
   [ -n "$w" ] || return 1
-  [ "$(secondmate_busy_class "$w")" = idle ] || return 1
+  task=$(window_to_task "$w" "$STATE")
+  [ -n "$task" ] || return 1
+  meta="$STATE/$task.meta"
+  [ -f "$meta" ] || return 1
+  run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 1
+  verdict=$(fm_busy_classify_meta "$meta" "$task" "$STATE" "$FM_CHECK_RESULT")
+  [ "${verdict%% *}" = idle ] || return 1
   backend=$(window_backend "$w")
   agent_state=$(fm_backend_agent_state "$backend" "$w" 2>/dev/null || true)
   [ "$agent_state" = alive ] || return 1
@@ -2075,6 +2064,7 @@ FM_ACTIVE_CHECK_PGID=
 FM_CHECK_OUTPUT=
 FM_CHECK_RESULT=
 FM_CHECK_SIGNAL_PENDING=
+FM_CAPTURE_STATUS=0
 
 fm_check_output_cleanup() {
   [ -z "$FM_CHECK_OUTPUT" ] || rm -f -- "$FM_CHECK_OUTPUT"
@@ -2120,19 +2110,20 @@ watcher_stop_signals() {
   trap 'exit 1' INT
 }
 
-run_check_capture() {
+run_tracked_capture() {
   local pgid
   fm_check_output_cleanup
   FM_CHECK_RESULT=
+  FM_CAPTURE_STATUS=0
   FM_CHECK_OUTPUT=$(mktemp "$STATE/.fm-check-output.XXXXXX") || return 1
   chmod 0600 "$FM_CHECK_OUTPUT" || { fm_check_output_cleanup; return 1; }
   FM_CHECK_SIGNAL_PENDING=
-  # Defer stop signals only until the check's process group is recorded for
+  # Defer stop signals only until the child's process group is recorded for
   # watcher_cleanup. Keep command substitutions out of this window: bash 5.2
   # can drop a trap that is pending when one is parsed (watcher_stop_signals).
   trap 'FM_CHECK_SIGNAL_PENDING=1' HUP INT TERM
   set -m
-  ( FM_CHECK_OWNED_GROUP=1 run_check_process "$@" ) > "$FM_CHECK_OUTPUT" 2>/dev/null &
+  ( "$@" ) > "$FM_CHECK_OUTPUT" 2>/dev/null &
   FM_ACTIVE_CHECK_PID=$!
   FM_ACTIVE_CHECK_PGID=$FM_ACTIVE_CHECK_PID
   set +m
@@ -2144,11 +2135,20 @@ run_check_capture() {
     fm_check_output_cleanup
     return 1
   fi
-  wait "$FM_ACTIVE_CHECK_PID" 2>/dev/null || true
+  wait "$FM_ACTIVE_CHECK_PID" 2>/dev/null || FM_CAPTURE_STATUS=$?
   FM_ACTIVE_CHECK_PID=
   fm_active_check_stop || return 1
   FM_CHECK_RESULT=$(cat "$FM_CHECK_OUTPUT" 2>/dev/null || true)
   fm_check_output_cleanup
+}
+
+run_check_capture() {
+  FM_CHECK_OWNED_GROUP=1 run_tracked_capture run_check_process "$@"
+}
+
+run_backend_capture() {
+  run_tracked_capture fm_backend_capture "$@" || return 1
+  [ "$FM_CAPTURE_STATUS" -eq 0 ]
 }
 
 # 0 when any signaled status file carries a captain-relevant event in the bytes
@@ -2987,7 +2987,8 @@ EOF
     if [ "$kind" = secondmate ] && ! status_is_paused_or_captain_held "$last"; then
       continue
     fi
-    tail40=$(fm_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" 2>/dev/null) || continue
+    run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || continue
+    tail40=$FM_CHECK_RESULT
     h=$(printf '%s' "$tail40" | hash_pane)
     hf="$STATE/.hash-$key"
     cf="$STATE/.count-$key"
