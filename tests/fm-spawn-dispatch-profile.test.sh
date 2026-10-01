@@ -544,7 +544,7 @@ test_codex_threads_model_and_effort() {
 
 test_codex_threads_model_and_max_effort() {
   local rec id out status launch model
-  for model in gpt-5.6-luna openai.gpt-5.6-sol openai.gpt-6-sol; do
+  for model in gpt-5.6-luna openai.gpt-5.6-sol openai.gpt-6-sol openai.gpt-6.1-sol; do
     id=profile-codex-max-${model//./-}-z4
     rec=$(make_spawn_case "$id" codex "$id")
     read_case_record "$rec"
