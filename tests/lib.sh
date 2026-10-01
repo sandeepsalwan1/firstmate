@@ -68,6 +68,11 @@ unset FM_TASK_ID
 # against an ambient override sets TASKS_AXI_FILE itself.
 unset TASKS_AXI_FILE TASKS_AXI_BACKEND
 
+# Clear the auto-updater switch a Claude Code operator shell exports. fm-spawn.sh
+# embeds an ambient value in the launch text, which breaks exact launch
+# assertions; fm_live_gate exports it itself for a live run.
+unset DISABLE_AUTOUPDATER
+
 # Resolve the repo root from this library's own location. Consumed by sourcing
 # test files, not by this library, so it reads as "unused" here.
 # shellcheck disable=SC2034
