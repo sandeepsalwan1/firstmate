@@ -6,6 +6,13 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-pi-watch-extension)
+TEST_NODE=$(node -p 'process.execPath') || fail "cannot resolve the Node runtime"
+TEST_PYTHON=$(python3 -c 'import sys; print(sys.executable)') || fail "cannot resolve the Python runtime"
+export PATH="${TEST_NODE%/*}:${TEST_PYTHON%/*}:$PATH"
+mkdir -p "$TMP_ROOT/login-home"
+# Fixture login shells must not load personal startup files or terminal session hooks.
+export HOME="$TMP_ROOT/login-home" SHELL_SESSIONS_DISABLE=1
+unset TERM_PROGRAM TERM_SESSION_ID
 EXT="$ROOT/.pi/extensions/fm-primary-pi-watch.ts"
 # Node 24 warns when these test-only dynamic imports load tracked ESM plugins
 # from a clean checkout with no tracked .opencode/package.json. The warning is

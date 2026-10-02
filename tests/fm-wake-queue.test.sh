@@ -69,7 +69,7 @@ test_signal_catchup_without_running_watcher() {
   # tested.
   printf 'blocked: first\n' > "$status_file"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
-  wait_for_exit "$!" 40 || fail "watcher did not exit for first signal"
+  wait_for_exit "$!" 200 || fail "watcher did not exit for first signal"
   grep -F "signal: $status_file" "$out" >/dev/null || fail "watcher did not print first signal"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2> "$drain_err" || fail "drain after first signal failed"
   grep "$(printf '\tsignal\t')" "$drain_out" | grep -F "$status_file" >/dev/null || fail "first signal was not queued"
@@ -81,7 +81,7 @@ test_signal_catchup_without_running_watcher() {
   printf 'done: second\n' >> "$status_file"
   : > "$out"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
-  wait_for_exit "$!" 40 || fail "watcher did not exit for second signal"
+  wait_for_exit "$!" 200 || fail "watcher did not exit for second signal"
   grep -F "signal: $status_file" "$out" >/dev/null || fail "signal written with no watcher was not caught"
   pass "signal written while no watcher runs is caught on next run"
 }
@@ -1909,6 +1909,57 @@ test_legacy_generationless_wake_is_adopted() {
 
 # Pin the recovery acknowledgement contract from docs/watcher-continuity.md at
 # the queue-library boundary.
+# A handover (bin/fm-watch-arm.sh --take-over) undoes only the downtime its own
+# watcher stop published over an acknowledged episode. A wake appended between
+# the snapshot and the stop, or an episode that was still open, is left for the
+# next watcher's arm check to surface.
+handover_case() {  # <state> <acked|handling> <append-between 0|1>
+  FM_STATE_OVERRIDE="$1" bash -c '
+    # shellcheck disable=SC1090,SC1091
+    . "$1/bin/fm-wake-lib.sh"
+    marker="$STATE/.watcher-down"
+    fm_recovery_marker_publish "$marker" downtime || exit 1
+    fm_recovery_marker_read "$marker" || exit 1
+    case "$2" in
+      acked) fm_recovery_marker_ack "$marker" "${FM_RECOVERY_MARKER_TOKEN##*:}" || exit 1 ;;
+      handling) fm_recovery_marker_begin_handling "$marker" || exit 1 ;;
+    esac
+    fm_recovery_marker_read "$marker" || exit 1
+    printf "before=%s\n" "$FM_RECOVERY_MARKER_TOKEN"
+    fm_recovery_marker_handover_snapshot "$marker" || exit 1
+    [ "$3" = 0 ] || fm_wake_append signal handover "signal: appended during the handover" || exit 1
+    # The stopped watcher closes and publishes downtime, as its EXIT cleanup does.
+    fm_recovery_marker_publish "$marker" downtime || exit 1
+    fm_recovery_marker_handover_restore "$marker" "$FM_RECOVERY_HANDOVER_TOKEN" "$FM_RECOVERY_HANDOVER_SEQ" || exit 1
+    fm_recovery_marker_read "$marker" || exit 1
+    printf "after=%s\n" "$FM_RECOVERY_MARKER_TOKEN"
+  ' _ "$ROOT" "$2" "$3"
+}
+
+test_handover_restore_undoes_only_its_own_stop() {
+  local out before after
+  out=$(handover_case "$(make_case handover-acked)/state" acked 0) || fail "acked handover case failed: $out"
+  before=$(printf '%s\n' "$out" | sed -n 's/^before=//p')
+  after=$(printf '%s\n' "$out" | sed -n 's/^after=//p')
+  case "$before" in acked:downtime:*) ;; *) fail "fixture: the episode was not acknowledged: $out" ;; esac
+  [ "$after" = "$before" ] || fail "a handover with nothing queued left a downtime episode: $out"
+
+  out=$(handover_case "$(make_case handover-appended)/state" acked 1) || fail "appended handover case failed: $out"
+  before=$(printf '%s\n' "$out" | sed -n 's/^before=//p')
+  after=$(printf '%s\n' "$out" | sed -n 's/^after=//p')
+  case "$after" in
+    pending:downtime:*) [ "${after##*:}" != "${before##*:}" ] || fail "fixture: no fresh episode opened: $out" ;;
+    *) fail "a handover hid a wake appended during it: $out" ;;
+  esac
+
+  out=$(handover_case "$(make_case handover-handling)/state" handling 0) || fail "handling handover case failed: $out"
+  before=$(printf '%s\n' "$out" | sed -n 's/^before=//p')
+  after=$(printf '%s\n' "$out" | sed -n 's/^after=//p')
+  case "$before" in pending:handling:*) ;; *) fail "fixture: the episode was not being handled: $out" ;; esac
+  [ "$after" = "pending:downtime:${before##*:}" ] || fail "a handover rewrote an episode main had not acknowledged: $out"
+  pass "a handover undoes only the downtime its own stop published over an acknowledged episode"
+}
+
 test_stale_recovery_generation_cannot_touch_a_newer_episode() {
   local dir state first_err replay_err sequence generation handling_marker
   local newer_marker newer_sequence newer_generation rc
@@ -3417,6 +3468,7 @@ test_branch_actor_without_eligible_snapshot_refuses
 test_wake_publish_requires_atomic_recovery_evidence
 test_recovery_mint_and_delivery_log_avoid_sibling_subst
 test_legacy_generationless_wake_is_adopted
+test_handover_restore_undoes_only_its_own_stop
 test_stale_recovery_generation_cannot_touch_a_newer_episode
 test_stale_ack_that_consumes_nothing_names_the_current_wake
 test_branch_stale_ack_that_consumes_nothing_names_its_granted_wake
