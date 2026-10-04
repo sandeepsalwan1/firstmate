@@ -64,6 +64,12 @@ if [ "${1:-}" = --handling-delivered ]; then
   printf 'confirmed generation=%s watcher=%s\n' "$2" "$4" >> "${FM_LIVE_WATCH_LOG:?}"
   exit 0
 fi
+previous=$(cat "${FM_LIVE_WATCH_LOG:?}.pid" 2>/dev/null || true)
+if [ -n "$previous" ]; then
+  kill -TERM "$previous" 2>/dev/null || true
+  while kill -0 "$previous" 2>/dev/null; do sleep 0.02; done
+fi
+printf '%s\n' "$$" > "${FM_LIVE_WATCH_LOG:?}.pid"
 printf 'arm pid=%s\n' "$$" >> "${FM_LIVE_WATCH_LOG:?}"
 printf 'watcher: started pid=%s (beacon fresh) recovery-generation=live-sdk-generation\n' "$$"
 trap 'exit 0' TERM INT
@@ -172,7 +178,10 @@ const waitFor = async (predicate, label) => {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new Error(`timeout waiting for ${label}`);
+  const watcherLog = existsSync(process.env.FM_LIVE_WATCH_LOG)
+    ? readFileSync(process.env.FM_LIVE_WATCH_LOG, "utf8")
+    : "";
+  throw new Error(`timeout waiting for ${label}; main messages=${JSON.stringify(mainUserMessages)}; offers=${offers.length}; watcher log=${watcherLog}`);
 };
 const armCount = () => existsSync(process.env.FM_LIVE_WATCH_LOG)
   ? readFileSync(process.env.FM_LIVE_WATCH_LOG, "utf8").split(/\n/).filter((line) => line.startsWith("arm ")).length
