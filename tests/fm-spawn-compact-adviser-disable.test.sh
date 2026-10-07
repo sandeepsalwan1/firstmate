@@ -382,6 +382,33 @@ SH
   pass "a compound raw launch-command still starts its agent with the compact-adviser switch on"
 }
 
+test_claude_inline_shell_prompt_launch_environment() {
+  local setting value rec out status seen id
+  for setting in absent enabled; do
+    for value in unset 0; do
+      id="inline-$setting-$value-a1"
+      rec=$(make_case "inline-$setting-$value" claude "$id")
+      read_case "$rec"
+      [ "$setting" = absent ] || : > "$HOME_DIR/config/launch-env-allowlist"
+      if [ "$value" = unset ]; then
+        out=$(unset CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT; run_case_spawn "$id" "$PROJ_DIR" --mode no-mistakes --yolo off)
+      else
+        out=$(CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT="$value" run_case_spawn "$id" "$PROJ_DIR" --mode no-mistakes --yolo off)
+      fi
+      status=$?
+      expect_code 0 "$status" "Claude environment capture should spawn: $out"
+      install_env_probe "$FAKEBIN_DIR" claude CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT
+      seen=$(emitted_launch_env "$FAKEBIN_DIR" "$LAUNCH_LOG" "$PANE_LOG") \
+        || fail "Claude environment capture could not execute the emitted launch"
+      [ "$value" != unset ] || value=1
+      assert_equals "$value" "$seen" \
+        "Claude launch must default the inline shell prompt flag and retain an explicit override"
+    done
+  done
+  pass "Claude child environment defaults the inline shell prompt flag and preserves an explicit override"
+}
+
+test_claude_inline_shell_prompt_launch_environment
 test_ship_allowlist_absent
 test_ship_allowlist_enabled
 test_launch_command_carries_the_switch_without_the_pane_export

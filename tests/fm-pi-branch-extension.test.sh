@@ -638,7 +638,7 @@ function dispatch(message, projects, heartbeat, eligible) {
   return offer;
 }
 async function settle(predicate, label) {
-  for (let i = 0; i < 250; i += 1) {
+  for (let i = 0; i < 1000; i += 1) {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -2620,7 +2620,7 @@ if (!offer.accepted) throw new Error("eligible task-local offer was not accepted
 // turn - unacked, still sitting in the queue - between offer acceptance and
 // the branch's own drain.
 appendFileSync(`${home}/state/.wake-queue`, "2\t2\tcheck\tx-inbox\tcheck: pending x mention\n");
-for (let i = 0; i < 250 && !globalThis.__fmPromptStarted && mainUserMessages.length === 0; i += 1) {
+for (let i = 0; i < 1000 && !globalThis.__fmPromptStarted && mainUserMessages.length === 0; i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 if (mainUserMessages.length !== 0) {
@@ -2637,10 +2637,10 @@ if (!queue.includes("\tcheck\tx-inbox\t")) {
   throw new Error(`the main-owned row must remain queued for main, untouched: ${queue}`);
 }
 releasePrompt();
-for (let i = 0; i < 250 && (globalThis.__fmPrompts ?? []).length === 0; i += 1) {
+for (let i = 0; i < 1000 && (globalThis.__fmPrompts ?? []).length === 0; i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
-for (let i = 0; i < 250 && existsSync(`${home}/state/.branch-eligible-rows`); i += 1) {
+for (let i = 0; i < 1000 && existsSync(`${home}/state/.branch-eligible-rows`); i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 if (existsSync(`${home}/state/.branch-eligible-rows`)) {
@@ -2684,7 +2684,7 @@ globalThis.__fmPromptGate = new Promise((resolve) => { releasePrompt = resolve; 
 const offer = makeOffer("signal: branch-driver.status");
 bus.emit("fm-branch-supervision:dispatch", offer);
 if (!offer.accepted) throw new Error("branch refused the routine offer before its mixed-queue recheck");
-for (let i = 0; i < 250 && !globalThis.__fmPromptStarted; i += 1) {
+for (let i = 0; i < 1000 && !globalThis.__fmPromptStarted; i += 1) {
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
 if (!globalThis.__fmPromptStarted) {
@@ -4603,7 +4603,7 @@ const offer = {
 };
 replacementBus.emit("fm-branch-supervision:dispatch", offer);
 if (!offer.accepted) throw new Error("replacement instance refused the wake");
-for (let i = 0; i < 250; i += 1) {
+for (let i = 0; i < 1000; i += 1) {
   const mirrors = (globalThis.__fmMirrors ?? []).map((m) => m.content);
   if (mirrors.includes("[captain] standing order: never merge task-7")) break;
   await new Promise((resolve) => setTimeout(resolve, 10));

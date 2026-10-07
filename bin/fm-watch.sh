@@ -549,7 +549,8 @@ inbox_steer_check() {  # <window> <task>
       return 0
       ;;
   esac
-  run_backend_capture "$backend" "$w" 40 "$(window_label "$w")" && tail40=$FM_CHECK_RESULT || tail40=
+  watcher_capture "$backend" "$w" 40 "$(window_label "$w")" || WATCHER_CAPTURE=
+  tail40=$WATCHER_CAPTURE
   if window_is_busy "$w" "$tail40"; then
     [ "$verb" != retry ] || return 0
     if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec"); then
@@ -763,8 +764,8 @@ signal_turnend_panes_churned() {  # <file> ...
     [ "$hash_bytes" = 32 ] || return 1
     prev=$(cat "$hash_file" 2>/dev/null) || return 1
     [[ $prev =~ ^[0-9a-f]{32}$ ]] || return 1
-    run_backend_capture "$backend" "$w" 40 "$label" || return 1
-    now=$FM_CHECK_RESULT
+    watcher_capture "$backend" "$w" 40 "$label" || return 1
+    now=$WATCHER_CAPTURE
     [ -n "$now" ] || return 1
     [ "$(printf '%s' "$now" | hash_pane)" != "$prev" ] || return 1
     churned_keys+=("$key")
@@ -870,9 +871,29 @@ secondmate_in_active_turn() {  # <window> <idle>
   local w=$1 idle=$2 tail40
   [ -n "$w" ] || return 1
   [ "$idle" -lt "$BUSY_TURN_MAX_SECS" ] || return 1
-  run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 1
-  tail40=$FM_CHECK_RESULT
+  watcher_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 1
+  tail40=$WATCHER_CAPTURE
   window_is_busy "$w" "$tail40"
+}
+
+# Set SECONDMATE_BUSY_CLASS to the first token of the semantic busy
+# classification for <window>: busy, idle, unknown, or dead. Capture failure and
+# a missing window are unknown, never idle. Empty inbox and a fresh watcher
+# beacon are not consulted. Call it directly, never in $(...), so its pane
+# capture runs in the watcher's own shell.
+SECONDMATE_BUSY_CLASS=
+secondmate_busy_class() {  # <window>
+  local w=$1 task meta tail40 verdict
+  SECONDMATE_BUSY_CLASS=unknown
+  task=$(window_to_task "$w" "$STATE")
+  meta="$STATE/$task.meta"
+  if [ -z "$w" ] || [ -z "$task" ] || [ ! -f "$meta" ]; then
+    return 0
+  fi
+  watcher_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 0
+  tail40=$WATCHER_CAPTURE
+  verdict=$(fm_busy_classify_meta "$meta" "$task" "$STATE" "$tail40")
+  SECONDMATE_BUSY_CLASS=${verdict%% *}
 }
 
 # 0 iff a child ring is authorized: exact idle, a live agent, and a composer
@@ -882,13 +903,8 @@ secondmate_in_active_turn() {  # <window> <idle>
 secondmate_idle_ring_safe() {  # <window>
   local w=$1 task meta verdict backend agent_state cstate
   [ -n "$w" ] || return 1
-  task=$(window_to_task "$w" "$STATE")
-  [ -n "$task" ] || return 1
-  meta="$STATE/$task.meta"
-  [ -f "$meta" ] || return 1
-  run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || return 1
-  verdict=$(fm_busy_classify_meta "$meta" "$task" "$STATE" "$FM_CHECK_RESULT")
-  [ "${verdict%% *}" = idle ] || return 1
+  secondmate_busy_class "$w"
+  [ "$SECONDMATE_BUSY_CLASS" = idle ] || return 1
   backend=$(window_backend "$w")
   agent_state=$(fm_backend_agent_state "$backend" "$w" 2>/dev/null || true)
   [ "$agent_state" = alive ] || return 1
@@ -2128,8 +2144,10 @@ fm_active_check_stop() {
 # parse of the next command substitution, the body then fails to parse ("trap:
 # line 2: unexpected EOF while looking for matching `)'", or nothing at all),
 # and the signal is consumed, so a stop request could leave this watcher
-# polling forever while its stopper waits (fixed upstream in bash 5.3). INT
-# keeps its trap because bash ignores a direct SIGINT while a child runs.
+# polling forever while its stopper waits (fixed upstream in bash 5.3). Bash
+# 3.2 holds HUP and TERM until a running command substitution's child exits, so
+# fm_backend_capture pane reads go through watcher_capture instead. INT keeps
+# its trap because bash ignores a direct SIGINT while a child runs.
 watcher_stop_signals() {
   trap - HUP TERM
   trap 'exit 1' INT
@@ -2171,8 +2189,12 @@ run_check_capture() {
   FM_CHECK_OWNED_GROUP=1 run_tracked_capture run_check_process "$@"
 }
 
-run_backend_capture() {
-  run_tracked_capture fm_backend_capture "$@" || return 1
+WATCHER_CAPTURE=
+
+watcher_capture() {
+  WATCHER_CAPTURE=
+  run_tracked_capture fm_backend_capture "$@" < /dev/null 2>/dev/null || return 1
+  WATCHER_CAPTURE=$FM_CHECK_RESULT
   [ "$FM_CAPTURE_STATUS" -eq 0 ]
 }
 
@@ -3016,8 +3038,8 @@ EOF
     if [ "$kind" = secondmate ] && ! status_is_paused_or_captain_held "$last"; then
       continue
     fi
-    run_backend_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || continue
-    tail40=$FM_CHECK_RESULT
+    watcher_capture "$(window_backend "$w")" "$w" 40 "$(window_label "$w")" || continue
+    tail40=$WATCHER_CAPTURE
     h=$(printf '%s' "$tail40" | hash_pane)
     hf="$STATE/.hash-$key"
     cf="$STATE/.count-$key"
