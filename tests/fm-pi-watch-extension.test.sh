@@ -3477,7 +3477,20 @@ await waitFor(
 if (finalSession.prompts.filter((message) => message.includes("signal: streaming queued actionable outcome")).length !== 1) {
   throw new Error(`second replacement did not replay the idle queued follow-up exactly once: ${finalSession.prompts.join(" | ")}`);
 }
-finalSession.handlers.get("before_agent_start")?.({ prompt: finalSession.prompts[0] }, {});
+finalSession.handlers.get("before_agent_start")?.({
+  messageType: "custom",
+  message: { role: "custom", customType: "external-notice", content: finalSession.prompts[0], display: false },
+}, {});
+await finalSession.handlers.get("session_shutdown")?.({ type: "session_shutdown", reason: "new" }, {});
+const userMod = await import(`${pathToFileURL(process.env.PLUGIN).href}?replacement=native-user-followup`);
+const userSession = makePi();
+userMod.default(userSession.pi);
+await userSession.handlers.get("session_start")?.({ type: "session_start", reason: "new" }, {});
+await waitFor(
+  () => userSession.prompts.length === 1,
+  "custom input leaves the user wake pending for replacement",
+);
+userSession.handlers.get("before_agent_start")?.({ messageType: "user", prompt: userSession.prompts[0] }, {});
 await new Promise((resolve) => setTimeout(resolve, 20));
 process.exit(0);
 EOF

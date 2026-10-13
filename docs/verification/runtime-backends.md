@@ -2186,6 +2186,17 @@ FM_HARNESS_LIVENESS_DRIFT=1 bin/fm-test-run.sh tests/fm-harness-liveness-drift-l
 
 ## Pi supervision branch
 
+Pi user/custom start compatibility was verified on 2026-10-13 against Pi 1.2.0 with an isolated in-memory session, the actual `ExtensionRunner`, and both tracked extensions.
+Native user and custom events completed without extension errors or network calls; strict no-emit checks also passed against Pi 1.1.0.
+Refresh the native type and portable behavior proofs with:
+
+```sh
+FM_PI_PACKAGE_DIR="$HOME/.local/share/pi/versions/1.2.0/lib/node_modules/@earendil-works/pi-coding-agent" \
+  bash bin/fm-test-run.sh tests/fm-pi-primary-types.test.sh tests/fm-pi-branch-extension.test.sh tests/fm-pi-watch-extension.test.sh
+```
+
+The focused run reported `FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0`; the branch and watcher cases cover custom processing, user-only dialog mirroring, and pending user-wake replay.
+
 The supervision-branch extension (`.pi/extensions/fm-branch-supervision.ts`, [docs/pi-supervision-branch.md](../pi-supervision-branch.md)) builds its second session through the Pi SDK surface: `createAgentSession` (including its `model`, `modelRuntime`, and `thinkingLevel` options), `DefaultResourceLoader` with `extensionFactories`, `SessionManager`, `createBashToolDefinition` with a `spawnHook`, `sendCustomMessage` for routine notes, `appendEntry` and `registerEntryRenderer` for captain outcomes, the `before_provider_request` hook, the command context's model registry for picker candidates, a fresh `ModelRuntime` for isolated-branch resolution, and Pi's own `getSupportedThinkingLevels`/`clampThinkingLevel` plus its `getThinkingLevel` and `thinking_level_select` extension surface for effort.
 In TUI mode, its `/supervision-model` model list is drawn with Pi's own `SelectList`, `Input`, `fuzzyFilter`, and `DynamicBorder` through the extension context's `ui.custom` surface, which is what bounds and searches a long catalog.
 

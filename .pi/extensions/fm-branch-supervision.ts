@@ -1681,9 +1681,11 @@ ${context.command}
     // getEntries() here loses the captain request that the next wake may answer.
     // Stage it verbatim and remember the future persisted index for turn_end's
     // duplicate suppression. Operational extension injections are not dialog.
-    const prompt = event.prompt;
+    const start: { prompt?: string; message?: { content: unknown } } = event;
+    const prompt = start.prompt ?? start.message?.content;
     processingOpenedThisRun = queuedProcessingContent !== null && prompt === queuedProcessingContent;
-    const trimmed = prompt.trim();
+    if (typeof start.prompt !== "string") return;
+    const trimmed = start.prompt.trim();
     if (!trimmed || isOperationalUserText(trimmed)) return;
     const file = currentMainSession.getSessionFile() ?? "";
     const index = mirrorCollection.collectAnchor?.index ?? currentMainSession.getEntries().length;
