@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Check FirstMate's hook launch against the installed Codex without a model call.
+# Live guard for the codex crewmate launch's hook posture.
+#
+# Replay FirstMate launch flags against the installed Codex CLI without model calls.
 set -u
 
 # shellcheck source=tests/fixtures.sh
@@ -24,6 +26,7 @@ capture_codex_launch() {
   id="codex-hook-layer-$name"
   fakebin=$(fm_test_make_spawn_fakebin "$case_dir/fake")
   fm_test_spawn_home "$home" codex
+  printf 'approve-for-me\n' > "$home/config/codex-approval-mode"
   fm_test_spawn_brief "$home" "$id"
   fm_git_worktree "$proj" "$wt" "wt-$name"
   : > "$launchlog"
@@ -42,22 +45,51 @@ codex_global_flags() {
   printf '%s' "$flags"
 }
 
-test_installed_codex_runs_hooks_for_the_captured_crewmate_launch() {
-  local launch flags state
+test_installed_codex_accepts_requested_hook_trust_for_the_captured_crewmate_launch() {
+  local launch flags listing
   launch=$(capture_codex_launch ship --mode no-mistakes --yolo off)
   flags=$(codex_global_flags "$launch")
-  case "$flags" in
-    *--dangerously-bypass-hook-trust*) ;;
-    *) fail "codex $CODEX_VERSION crewmate launch does not bypass hook trust" ;;
+  case " $flags " in
+    *' --dangerously-bypass-hook-trust '*) ;;
+    *) fail "captured Codex launch omitted hook trust" ;;
   esac
-  state=$(eval "codex $flags features list" 2>&1) ||
-    fail "codex $CODEX_VERSION rejected firstmate's crewmate launch flags: $state"
-  printf '%s\n' "$state" | awk '$1 == "hooks" { print $NF }' | grep -qx true ||
-    fail "codex $CODEX_VERSION disabled hooks for firstmate's crewmate launch"
+  case " $flags " in
+    *' --disable hooks '*) fail "captured Codex launch disabled authorized hooks" ;;
+  esac
+  case " $flags " in
+    *' --approve-for-me '*) ;;
+    *) fail "codex $CODEX_VERSION captured launch omitted --approve-for-me" ;;
+  esac
+  case " $flags " in
+    *' --dangerously-bypass-approvals-and-sandbox '*)
+      fail "codex $CODEX_VERSION captured launch retained the complete-bypass posture"
+      ;;
+  esac
 
-  printf 'ok - codex %s accepts Firstmate crewmate hook flags and leaves hooks enabled\n' "$CODEX_VERSION"
+  listing=$(eval "codex $flags features list" 2>&1) ||
+    fail "codex $CODEX_VERSION rejected firstmate's crewmate launch flags: $listing"
+  case "$listing" in
+    *"Unknown feature flag"*)
+      fail "codex $CODEX_VERSION no longer knows the hook feature Firstmate uses: $listing"
+      ;;
+  esac
+  printf '%s\n' "$listing" | awk '{ print $1 }' | grep -qx hooks ||
+    fail "codex $CODEX_VERSION omitted the hook feature from the captured crewmate launch"
+
+  printf 'ok - codex %s accepts requested hook trust for a firstmate crewmate launch\n' "$CODEX_VERSION"
 }
 
-test_installed_codex_runs_hooks_for_the_captured_crewmate_launch
+test_installed_codex_still_reports_the_hook_feature() {
+  local listing
+  listing=$(codex features list 2>&1) ||
+    fail "codex $CODEX_VERSION could not list its feature flags: $listing"
+  printf '%s\n' "$listing" | awk '{ print $1 }' | grep -qx hooks ||
+    fail "codex $CODEX_VERSION no longer publishes a hook feature flag; firstmate's crewmate launch needs a new control"
+
+  printf 'ok - codex %s still publishes the hook feature flag Firstmate uses\n' "$CODEX_VERSION"
+}
+
+test_installed_codex_still_reports_the_hook_feature
+test_installed_codex_accepts_requested_hook_trust_for_the_captured_crewmate_launch
 
 echo "# all fm-codex-hook-layer-live-e2e tests passed"

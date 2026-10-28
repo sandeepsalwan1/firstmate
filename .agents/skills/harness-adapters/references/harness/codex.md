@@ -4,16 +4,19 @@ Verified on 2026-06-11 with codex-cli 0.139.0 unless a fact gives a newer versio
 
 ## Operating facts
 
+These command-line and terminal facts apply to pane-backed sessions; for T3 Code, read the [native lifecycle](../../../../../docs/t3code-backend.md#current-lifecycle-and-safety) and [provider-command limits](../../../../../docs/t3code-backend.md#active-limits).
+
 | Fact | Value |
 |---|---|
-| Busy state | Unknown until a turn-level source is live-verified: the pane app-server lifecycle is unreachable, and enabled project hooks do not yet provide a verified worker turn protocol. |
+| Busy state | Unknown until a semantic source is live-verified: the app-server turn lifecycle is unreachable for a pane worker, and project lifecycle hooks did not fire for a Firstmate-launched worker. |
 | Exit command | `/quit`; its slash popup needs about one second between text and Enter, which the shared submit path used by the control plane handles. |
 | Interrupt | Single Escape. |
 | Skill invocation | `$<skill>`, for example `$no-mistakes`; `/<skill>` is Claude-only and Codex rejects it as "Unrecognized command". |
 | Resume | `codex resume <session-id>`, using the id printed on quit. |
 | Model flag | `--model <model>`. |
-| Effort flag | `-c 'model_reasoning_effort="<low\|medium\|high\|xhigh\|max>"'`; see [crew dispatch profiles](../../../../../docs/configuration.md) for model-scoped `max` support. |
+| Effort flag | `-c 'model_reasoning_effort="<low\|medium\|high\|xhigh\|max>"'`, verified on codex-cli 0.142.1 whose installed schema contains `model_reasoning_effort`, active config uses it, and bundled catalog advertised only the first four values while omitting `max`; current codex-cli 0.153.4 catalog data at `${CODEX_HOME:-~/.codex}/models_cache.json` advertises `max` for `gpt-5.6-luna`, which Firstmate passes for that model. |
 | Model discovery | Open the current interactive session's `/model` picker. |
+| Approval posture | See [`Codex automatic approval review`](../../../../../docs/configuration.md#codex-automatic-approval-review) and [`persistent failover`](../../../../../docs/configuration.md#persistent-managed-policy-failover). |
 | Marker | None; identity comes from ancestry, and `../../../bin/fm-harness.sh` is what keeps a retained foreign `CLAUDECODE` from renaming it. Verified on 2026-09-01 with codex-cli 0.152.0: the pane process is the `node` npm shim and the native `codex` binary runs as its foreground child, so a tool subprocess reaches the native name directly while the shim itself is identified from its script path. |
 
 A directory trust dialog appears on the first run for a repository root: "Do you trust the contents of this directory?"
@@ -22,16 +25,13 @@ The decision persists for the repository, so later worktrees of the same project
 
 ## Hook trust
 
-Verified on 2026-09-28 with Codex 0.158: `--dangerously-bypass-hook-trust` runs enabled machine and project hooks without a persisted trust prompt.
-Firstmate passes this flag for crewmates, scouts, and secondmates.
-It does not write Codex's trust store.
-Crewmates and scouts keep their separate `-c notify=` turn-end signal.
+Firstmate passes `--dangerously-bypass-hook-trust` for workers and secondmates under the captain's explicit setup authority. Machine and project hooks remain active without a persisted trust prompt. Workers retain their separate `-c notify=` turn-end signal.
 
 ## Skill popup
 
 A `$<skill>` invocation opens a `$` autocomplete popup.
 Submitting too fast lets the popup swallow Enter, so the invocation never lands.
-`../../../bin/fm-send.sh` gives a leading `$` a 1.2-second settle before the first Enter only when the exact task metadata records `harness=codex`, with the target backend's submit retry as the safety net.
+For pane-backed sessions, `../../../bin/fm-send.sh` gives a leading `$` a 1.2-second settle before the first Enter only when the exact task metadata records `harness=codex`, with the target backend's submit retry as the safety net.
 That scope is load-bearing because a leading `$` commonly starts ordinary text such as `$5/month` or `$HOME`.
 An explicit `session:window` target has no metadata, so its harness is unknown and uses the non-Codex fast path.
 This is why `$no-mistakes` reaches a Codex worker instead of being consumed by the popup.
